@@ -1,49 +1,53 @@
 from flask import Blueprint, render_template, request, jsonify
-from .database import add_lead, get_all_leads
-from .services.ai_service import yapay_zeka_ile_konus
-import re  # Python'un kelime ve numara avcısı kütüphanesi
+from .database import lead_ekle, tum_leadler
+from .services.ai_service import ai_service, AIServiceError
 
+# Blueprint tanımları (Yönerge iki tane istiyor)
 main = Blueprint('main', __name__)
+api = Blueprint('api', __name__, url_prefix='/api')
 
+# Yönerge: GET / - Karşılama sayfasını gösterir
 @main.route('/')
 def index():
     return render_template('index.html')
 
-@main.route('/api/sohbet', methods=['POST'])
+# Yönerge: GET /dashboard - Yönetim panelini gösterir
+@main.route('/dashboard')
+def dashboard():
+    return render_template('dashboard.html')
+
+# Yönerge: POST /api/sohbet - AI'a mesaj iletir
+@api.route('/sohbet', methods=['POST'])
 def chat():
     data = request.get_json()
-    kullanici_mesaji = data.get('mesaj', '')
+    mesaj = data.get('mesaj', '')
     
-    if not kullanici_mesaji:
-        return jsonify({'hata': 'Mesaj alanı boş olamaz'}), 400
+    if not mesaj:
+        return jsonify({'basari': False, 'hata': 'Mesaj eksik'}), 400
+        
+    try:
+        cevap = ai_service.yanit_uret(mesaj)
+        return jsonify({'basari': True, 'cevap': cevap})
+    except AIServiceError as e:
+        return jsonify({'basari': False, 'hata': str(e)}), 503
 
-   # --- 1.  VERİ AVCISI: Her türlü telefon formatını yakalar (+90, tire, boşluk) ---
-    telefon_deseni = r'(?:\+90|0)?\s*5\d{2}[\s\-]*\d{3}[\s\-]*\d{2}[\s\-]*\d{2}'
-    bulunan_numaralar = re.findall(telefon_deseni, kullanici_mesaji)
-
-    # --- 2. KÖPRÜ: Bulunan numarayı veritabanına kaydet ---
-    if bulunan_numaralar:
-        # Yakalanan numaranın içindeki tüm tireleri ve boşlukları temizler, jilet gibi kaydeder
-        yakalanan_numara = re.sub(r'[\s\-]', '', bulunan_numaralar[0]) 
-        add_lead("Sohbet Ziyaretçisi", yakalanan_numara)
-
-    # 3. Mesajı her halükarda yapay zekaya gönder ve cevabı al
-    ai_cevabi = yapay_zeka_ile_konus(kullanici_mesaji)
-    return jsonify({'cevap': ai_cevabi})
-
-@main.route('/api/leads', methods=['POST'])
-def lead_ekle():
+# Yönerge: POST /api/leads - Yeni lead kaydeder
+@api.route('/leads', methods=['POST'])
+def add_lead_route():
     data = request.get_json()
     isim = data.get('isim')
     telefon = data.get('telefon')
     
-    if isim and telefon:
-        add_lead(isim, telefon)
-        return jsonify({'mesaj': 'Kayıt başarılı'}), 200
+    if not isim or not telefon:
+        return jsonify({'basari': False, 'hata': 'İsim ve telefon zorunlu'}), 400
         
-    return jsonify({'hata': 'Eksik bilgi gönderildi'}), 400
+    kayit_basarili = lead_ekle(isim, telefon, data.get('mesaj', ''))
+    if kayit_basarili:
+        return jsonify({'basari': True, 'mesaj': 'Kayıt başarılı'}), 201
+    return jsonify({'basari': False, 'hata': 'Veritabanı hatası'}), 500
 
-@main.route('/dashboard')
-def dashboard():
-    leads = get_all_leads()
-    return render_template('dashboard.html', leads=leads)
+# Yönerge: GET /api/leads - Tüm lead'leri getirir
+@api.route('/leads', methods=['GET'])
+def get_leads_route():
+    leadler = tum_leadler()
+    return jsonify({'basari': True, 'data': leadler})
