@@ -17,15 +17,14 @@ def chat():
     if not kullanici_mesaji:
         return jsonify({'hata': 'Mesaj alanı boş olamaz'}), 400
 
-    # --- 1. VERİ AVCISI: Telefon numarası formatını arar ---
-    # 05XX XXX XX XX veya boşluksuz formatları yakalar
-    telefon_deseni = r'0?5\d{2}\s?\d{3}\s?\d{2}\s?\d{2}'
+   # --- 1.  VERİ AVCISI: Her türlü telefon formatını yakalar (+90, tire, boşluk) ---
+    telefon_deseni = r'(?:\+90|0)?\s*5\d{2}[\s\-]*\d{3}[\s\-]*\d{2}[\s\-]*\d{2}'
     bulunan_numaralar = re.findall(telefon_deseni, kullanici_mesaji)
 
     # --- 2. KÖPRÜ: Bulunan numarayı veritabanına kaydet ---
     if bulunan_numaralar:
-        yakalanan_numara = bulunan_numaralar[0].replace(" ", "") # Boşlukları temizle
-        # İsmi tam analiz etmek zor olduğu için varsayılan bir isimle kaydediyoruz
+        # Yakalanan numaranın içindeki tüm tireleri ve boşlukları temizler, jilet gibi kaydeder
+        yakalanan_numara = re.sub(r'[\s\-]', '', bulunan_numaralar[0]) 
         add_lead("Sohbet Ziyaretçisi", yakalanan_numara)
 
     # 3. Mesajı her halükarda yapay zekaya gönder ve cevabı al
