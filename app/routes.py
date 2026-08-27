@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, jsonify
 from .database import lead_ekle, tum_leadler
 from .services.ai_service import ai_service, AIServiceError
 
-# Blueprint tanımları (Yönerge iki tane istiyor)
+# Blueprint tanımları 
 main = Blueprint('main', __name__)
 api = Blueprint('api', __name__, url_prefix='/api')
 
